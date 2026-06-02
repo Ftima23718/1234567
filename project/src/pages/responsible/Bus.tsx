@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bus as BusIcon, Plus, Wrench, Power, PowerOff } from 'lucide-react';
-import { fetchBus, fetchLignes } from '../../services/transport';
+import axiosClient from '../../api/axiosClient';
+import { fetchBus, fetchLignes, createBus } from '../../services/transport';
 import { getStatutColor, getStatutLabel } from '../../utils/format';
 import { useToast } from '../../components/ui/useToast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -15,9 +16,22 @@ export default function ResponsibleBus() {
   const [statusDialog, setStatusDialog] = useState<{ id: string; newStatus: string } | null>(null);
   const [maintenanceNote, setMaintenanceNote] = useState('');
   const [showMaintenanceDialog, setShowMaintenanceDialog] = useState<{ id: string; toMaintenance: boolean } | null>(null);
+  const [loading, setLoading] = useState(false);
+  // Form state
+  const [formData, setFormData] = useState({
+    immatriculation: '',
+    capacite: '',
+    marque: '',
+    modele: '',
+    ligneId: ''
+  });
   const { toast } = useToast();
 
   useEffect(() => {
+    loadBusList();
+  }, []);
+
+  const loadBusList = () => {
     Promise.all([fetchBus(), fetchLignes()])
       .then(([bus, lig]) => {
         setBusList(Array.isArray(bus) ? bus : bus.content ?? []);
@@ -27,19 +41,69 @@ export default function ResponsibleBus() {
         setBusList([]);
         setLignes([]);
       });
-  }, []);
+  };
 
   const filtered = busList
     .filter(b => filterStatut === 'all' || b.statut === filterStatut)
     .filter(b => search === '' || `${b.immatriculation} ${b.marque} ${b.modele}`.toLowerCase().includes(search.toLowerCase()));
 
-  const handleStatusChange = (id: string, newStatus: string) => {
-    setBusList(prev => prev.map(b => b.id === id ? { ...b, statut: newStatus as 'ACTIF' | 'EN_MAINTENANCE' | 'HORS_SERVICE', placesDisponibles: newStatus === 'ACTIF' ? b.capacite : b.placesDisponibles } : b));
-    setStatusDialog(null);
-    setShowMaintenanceDialog(null);
-    setMaintenanceNote('');
-    const label = newStatus === 'ACTIF' ? 'actif' : newStatus === 'EN_MAINTENANCE' ? 'en maintenance' : 'hors service';
-    toast('success', `Bus mis ${label} avec succes`);
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    setLoading(true);
+    try {
+      await axiosClient.patch(`/driver/bus/${id}/status`, {
+        statut: newStatus,
+        note: maintenanceNote || undefined,
+      });
+      await loadBusList();
+      toast('success', `Bus mis ${newStatus === 'ACTIF' ? 'actif' : newStatus === 'EN_MAINTENANCE' ? 'en maintenance' : 'hors service'} avec succès`);
+    } catch (error) {
+      console.error('Erreur lors du changement de statut du bus:', error);
+      toast('error', 'Erreur lors du changement de statut du bus');
+    } finally {
+      setLoading(false);
+      setStatusDialog(null);
+      setShowMaintenanceDialog(null);
+      setMaintenanceNote('');
+    }
+  };
+
+  const handleAddBus = async () => {
+    if (!formData.immatriculation.trim() || !formData.capacite || !formData.marque.trim() || !formData.modele.trim()) {
+      toast('error', 'Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newBusData = {
+        immatriculation: formData.immatriculation.trim(),
+        capacite: parseInt(formData.capacite, 10),
+        marque: formData.marque.trim(),
+        modele: formData.modele.trim(),
+        ligneId: formData.ligneId || null,
+      };
+
+      await createBus(newBusData);
+      toast('success', 'Bus ajouté avec succès');
+      
+      // Refresh list
+      await loadBusList();
+      
+      // Reset form and close modal
+      setFormData({
+        immatriculation: '',
+        capacite: '',
+        marque: '',
+        modele: '',
+        ligneId: ''
+      });
+      setShowModal(false);
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du bus:', error);
+      toast('error', 'Erreur lors de l\'ajout du bus');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -238,26 +302,56 @@ export default function ResponsibleBus() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Immatriculation</label>
-                  <input className="input-field" placeholder="TRAN-009" />
+                  <input 
+                    className="input-field" 
+                    placeholder="TRAN-009"
+                    value={formData.immatriculation}
+                    onChange={(e) => setFormData({ ...formData, immatriculation: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Capacite</label>
-                  <input type="number" className="input-field" placeholder="50" />
+                  <input 
+                    type="number" 
+                    className="input-field" 
+                    placeholder="50"
+                    value={formData.capacite}
+                    onChange={(e) => setFormData({ ...formData, capacite: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Marque</label>
-                  <input className="input-field" placeholder="Mercedes" />
+                  <input 
+                    className="input-field" 
+                    placeholder="Mercedes"
+                    value={formData.marque}
+                    onChange={(e) => setFormData({ ...formData, marque: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Modele</label>
-                  <input className="input-field" placeholder="Citaro" />
+                  <input 
+                    className="input-field" 
+                    placeholder="Citaro"
+                    value={formData.modele}
+                    onChange={(e) => setFormData({ ...formData, modele: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ligne affectee</label>
-                <select className="input-field">
+                <select 
+                  className="input-field"
+                  value={formData.ligneId}
+                  onChange={(e) => setFormData({ ...formData, ligneId: e.target.value })}
+                  disabled={loading}
+                >
                   <option value="">Choisir une ligne</option>
                   {lignes.filter((l) => l.estActive).map((l) => (
                     <option key={l.id} value={l.id}>{l.nom}</option>
@@ -265,8 +359,20 @@ export default function ResponsibleBus() {
                 </select>
               </div>
               <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={() => { setShowModal(false); toast('success', 'Bus ajoute avec succes'); }} className="btn-primary flex-1">Ajouter</button>
+                <button 
+                  onClick={() => setShowModal(false)} 
+                  className="btn-ghost flex-1"
+                  disabled={loading}
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={handleAddBus} 
+                  className="btn-primary flex-1"
+                  disabled={loading}
+                >
+                  {loading ? 'Ajout...' : 'Ajouter'}
+                </button>
               </div>
             </div>
           </div>

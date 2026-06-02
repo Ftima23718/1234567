@@ -37,6 +37,7 @@ public class NotificationService {
         notificationRepository.save(notification);
     }
 
+    @Transactional(readOnly = true)
     public NotificationDtos.NotificationSummary getSummary(String userId) {
         long unreadCount = notificationRepository.countByUtilisateurIdAndEstLueFalse(userId);
         List<Notification> recent = notificationRepository.findByUtilisateurIdOrderByDateEnvoiDesc(userId)
@@ -48,6 +49,7 @@ public class NotificationService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
     public List<NotificationDtos.NotificationResponse> getAll(String userId) {
         return notificationRepository.findByUtilisateurIdOrderByDateEnvoiDesc(userId)
                 .stream().map(mapper::toNotificationResponse).toList();

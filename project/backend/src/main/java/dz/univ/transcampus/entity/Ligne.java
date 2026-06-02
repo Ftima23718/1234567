@@ -38,16 +38,16 @@ public class Ligne {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("ordre ASC")
     @Builder.Default
     private List<Arret> arrets = new ArrayList<>();
 
-    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @Builder.Default
     private List<Bus> bus = new ArrayList<>();
 
-    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "ligne", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @Builder.Default
     private List<Trajet> trajets = new ArrayList<>();
 

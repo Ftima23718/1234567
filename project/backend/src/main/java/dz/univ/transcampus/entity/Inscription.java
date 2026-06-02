@@ -18,15 +18,15 @@ public class Inscription {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "etudiant_id", nullable = false)
     private Utilisateur etudiant;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "ligne_id", nullable = false)
     private Ligne ligne;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "arret_id", nullable = false)
     private Arret arret;
 
@@ -52,10 +52,10 @@ public class Inscription {
     @Column(name = "motif_rejet")
     private String motifRejet;
 
-    @OneToOne(mappedBy = "inscription", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "inscription", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private Paiement paiement;
 
-    @OneToOne(mappedBy = "inscription", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "inscription", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private Badge badge;
 
     public enum TypeAbonnement {

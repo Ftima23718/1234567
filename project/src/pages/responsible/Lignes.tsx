@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Bus, Plus, Edit2, Trash2, MapPin, ArrowRight } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { fetchArrets, fetchBus, fetchLignes } from '../../services/transport';
+import { useToast } from '../../components/ui/useToast';
 
 export default function ResponsibleLignes() {
   const [showModal, setShowModal] = useState(false);
@@ -8,8 +10,24 @@ export default function ResponsibleLignes() {
   const [lignes, setLignes] = useState<any[]>([]);
   const [arrets, setArrets] = useState<any[]>([]);
   const [busList, setBusList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const [loadingAdd, setLoadingAdd] = useState(false);
+
+  // Form state
+  const [form, setForm] = useState({
+    nom: '',
+    description: '',
+    pointDepart: '',
+    pointArrivee: '',
+    estActive: true
+  });
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = () => {
     Promise.all([fetchLignes(), fetchBus()])
       .then(([lig, bus]) => {
         const lineData = Array.isArray(lig) ? lig : lig.content ?? [];
@@ -23,11 +41,30 @@ export default function ResponsibleLignes() {
         setArrets([]);
         setBusList([]);
       });
-  }, []);
+  };
 
   const ligneDetail = lignes.find((l) => l.id === selectedLigne);
   const ligneArrets = arrets.filter((a) => a.ligneId === selectedLigne);
   const ligneBus = busList.filter((b) => b.ligneId === selectedLigne);
+
+  const handleAdd = async () => {
+    if (!form.nom || !form.pointDepart || !form.pointArrivee) {
+      toast('warning', 'Nom, départ et arrivée sont obligatoires');
+      return;
+    }
+    setLoadingAdd(true);
+    try {
+      await axiosClient.post('/admin/lignes', form);
+      toast('success', 'Ligne créée avec succès');
+      setShowModal(false);
+      setForm({ nom: '', description: '', pointDepart: '', pointArrivee: '', estActive: true });
+      axiosClient.get('/lignes').then(r => setLignes(Array.isArray(r.data) ? r.data : []));
+    } catch (err: any) {
+      toast('error', err?.response?.data?.message || 'Erreur lors de la création');
+    } finally {
+      setLoadingAdd(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -156,29 +193,37 @@ export default function ResponsibleLignes() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom de la ligne</label>
-                <input className="input-field" placeholder="Ex: Ligne E - Campus Nord" />
+                <input className="input-field" placeholder="Ex: Ligne E - Campus Nord"
+                  value={form.nom} onChange={e => setForm(p => ({ ...p, nom: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input className="input-field" placeholder="Description du trajet" />
+                <input className="input-field" placeholder="Description du trajet"
+                  value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Point de depart</label>
-                  <input className="input-field" placeholder="Depart" />
+                  <input className="input-field" placeholder="Depart"
+                    value={form.pointDepart} onChange={e => setForm(p => ({ ...p, pointDepart: e.target.value }))} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Point d'arrivee</label>
-                  <input className="input-field" placeholder="Arrivee" />
+                  <input className="input-field" placeholder="Arrivee"
+                    value={form.pointArrivee} onChange={e => setForm(p => ({ ...p, pointArrivee: e.target.value }))} />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <input type="checkbox" id="active" defaultChecked className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                <input type="checkbox" id="active" checked={form.estActive}
+                  onChange={e => setForm(p => ({ ...p, estActive: e.target.checked }))}
+                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                 <label htmlFor="active" className="text-sm text-gray-700">Ligne active</label>
               </div>
               <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={() => setShowModal(false)} className="btn-primary flex-1">Creer la ligne</button>
+                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1" disabled={loadingAdd}>Annuler</button>
+                <button onClick={handleAdd} disabled={loadingAdd} className="btn-primary flex-1">
+                  {loadingAdd ? 'Création...' : 'Créer la ligne'}
+                </button>
               </div>
             </div>
           </div>

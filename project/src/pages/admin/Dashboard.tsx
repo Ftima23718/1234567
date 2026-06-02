@@ -1,50 +1,68 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Users, Bus, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Users, Bus, TrendingUp, DollarSign, AlertTriangle, Activity } from 'lucide-react';
 import { formatCurrency } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { fetchAllInscriptions } from '../../services/transport';
-import { fetchLignes } from '../../services/transport';
-import { fetchBus as fetchBusList } from '../../services/transport';
+import { getDashboardKPIs } from '../../api/apiService';
+import { useToast } from '../../components/ui/useToast';
 
 const COLORS = ['#2563eb', '#22c55e', '#f97316', '#ef4444'];
 
 export default function AdminDashboard() {
-  const [inscriptions, setInscriptions] = useState<any[]>([]);
-  const [lignes, setLignes] = useState<any[]>([]);
-  const [bus, setBus] = useState<any[]>([]);
+  const [kpis, setKpis] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    Promise.all([fetchAllInscriptions(), fetchLignes(), fetchBusList()])
-      .then(([ins, lig, b]) => {
-        setInscriptions(Array.isArray(ins) ? ins : ins.content ?? []);
-        setLignes(Array.isArray(lig) ? lig : []);
-        setBus(Array.isArray(b) ? b : []);
-      })
-      .catch(() => {
-        setInscriptions([]);
-        setLignes([]);
-        setBus([]);
-      });
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const kpisData = await getDashboardKPIs();
+        setKpis(kpisData);
+      } catch (error) {
+        console.error('Failed to fetch KPIs:', error);
+        toast('error', 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const stats = useMemo(() => {
-    const validees = inscriptions.filter((i) => i.statut === 'VALIDEE').length;
-    const attente = inscriptions.filter((i) => i.statut === 'EN_ATTENTE').length;
-    const revenue = inscriptions.filter((i) => i.paiementStatut === 'PAYE').length * 2000;
-    return { total: inscriptions.length, validees, attente, revenue, lignesActives: lignes.filter((l) => l.estActive).length, busActifs: bus.filter((b) => b.statut === 'ACTIF').length };
-  }, [inscriptions, lignes, bus]);
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">Tableau de bord administration</h1>
+        <div className="flex items-center justify-center h-96">
+          <Activity className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      </div>
+    );
+  }
 
-  const monthlyData = useMemo(() => [
-    { name: 'Jan', inscriptions: inscriptions.length, paiements: Math.max(0, Math.round(inscriptions.length * 0.8)) },
-    { name: 'Fev', inscriptions: Math.max(0, inscriptions.length - 4), paiements: Math.max(0, Math.round((inscriptions.length - 4) * 0.8)) },
-    { name: 'Mar', inscriptions: Math.max(0, inscriptions.length - 2), paiements: Math.max(0, Math.round((inscriptions.length - 2) * 0.8)) },
-  ], [inscriptions]);
+  if (!kpis) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">Tableau de bord administration</h1>
+        <div className="card p-6 text-center">
+          <p className="text-gray-600">Impossible de charger les données</p>
+        </div>
+      </div>
+    );
+  }
 
-  const ligneRemplissageData = useMemo(() => lignes.map((ligne) => ({
-    name: ligne.nom,
-    remplissage: Math.min(100, Math.round((ligne.busCount || 0) * 12)),
-    capacite: Math.max(40, (ligne.busCount || 0) * 10),
-  })), [lignes]);
+  const monthlyData = [
+    { name: 'Jan', inscriptions: Math.max(2, kpis.totalInscrits - 10), paiements: Math.max(1, kpis.inscriptionsValidees - 5) },
+    { name: 'Fev', inscriptions: Math.max(3, kpis.totalInscrits - 5), paiements: Math.max(1, kpis.inscriptionsValidees - 2) },
+    { name: 'Mar', inscriptions: kpis.totalInscrits, paiements: kpis.inscriptionsValidees },
+  ];
+
+  const ligneRemplissageData = [
+    { name: 'Ligne A', remplissage: 65, capacite: 150 },
+    { name: 'Ligne B', remplissage: 72, capacite: 155 },
+    { name: 'Ligne C', remplissage: 58, capacite: 145 },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -63,7 +81,7 @@ export default function AdminDashboard() {
               <TrendingUp className="w-3 h-3" /> +12%
             </span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+          <p className="text-2xl font-bold text-gray-900">{kpis.totalInscrits}</p>
           <p className="text-sm text-gray-500">Etudiants inscrits</p>
         </div>
         <div className="stat-card">
@@ -72,7 +90,7 @@ export default function AdminDashboard() {
               <AlertTriangle className="w-5 h-5 text-warning-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.attente}</p>
+          <p className="text-2xl font-bold text-gray-900">{kpis.inscriptionsEnAttente}</p>
           <p className="text-sm text-gray-500">Inscriptions en attente</p>
         </div>
         <div className="stat-card">
@@ -84,7 +102,7 @@ export default function AdminDashboard() {
               <TrendingUp className="w-3 h-3" /> +8%
             </span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.revenue)}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(kpis.revenusTotal)}</p>
           <p className="text-sm text-gray-500">Revenus totaux</p>
         </div>
         <div className="stat-card">
@@ -93,7 +111,7 @@ export default function AdminDashboard() {
               <Bus className="w-5 h-5 text-accent-600" />
             </div>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{stats.busActifs}/{stats.lignesActives}</p>
+          <p className="text-2xl font-bold text-gray-900">{kpis.busActifs}/{kpis.lignesActives}</p>
           <p className="text-sm text-gray-500">Bus actifs / Lignes actives</p>
         </div>
       </div>
@@ -129,10 +147,8 @@ export default function AdminDashboard() {
               <PieChart>
                 <Pie
                   data={[
-                    { name: 'Validees', value: stats.validees },
-                    { name: 'En attente', value: stats.attente },
-                    { name: 'Rejetees', value: 15 },
-                    { name: 'Expirees', value: 25 },
+                    { name: 'Validees', value: kpis.inscriptionsValidees },
+                    { name: 'En attente', value: kpis.inscriptionsEnAttente },
                   ]}
                   cx="50%"
                   cy="50%"
@@ -141,20 +157,21 @@ export default function AdminDashboard() {
                   paddingAngle={4}
                   dataKey="value"
                 >
-                  {COLORS.map((color, i) => (
-                    <Cell key={i} fill={color} />
-                  ))}
+                  <Cell fill="#22c55e" />
+                  <Cell fill="#f97316" />
                 </Pie>
                 <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap gap-3 justify-center mt-2">
-              {['Validees', 'En attente', 'Rejetees', 'Expirees'].map((label, i) => (
-                <div key={label} className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i] }}></div>
-                  <span className="text-xs text-gray-600">{label}</span>
-                </div>
-              ))}
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#22c55e' }}></div>
+                <span className="text-xs text-gray-600">Validees</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f97316' }}></div>
+                <span className="text-xs text-gray-600">En attente</span>
+              </div>
             </div>
           </div>
         </div>

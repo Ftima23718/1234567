@@ -8,6 +8,10 @@ const USER_KEY = 'transcampus_user';
 
 function getApiErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const err = error as Record<string, unknown>;
+    return String(err.detail ?? err.message ?? err.error ?? 'Une erreur inattendue est survenue.');
+  }
   return 'Une erreur inattendue est survenue.';
 }
 
@@ -26,7 +30,10 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error((data && typeof data === 'object' && 'message' in data ? String(data.message) : '') || 'Erreur d’authentification');
+    const message = data && typeof data === 'object'
+      ? String((data as Record<string, unknown>).detail ?? (data as Record<string, unknown>).message ?? (data as Record<string, unknown>).error ?? 'Erreur d’authentification')
+      : 'Erreur d’authentification';
+    throw new Error(message);
   }
 
   return data as T;

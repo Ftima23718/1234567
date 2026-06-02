@@ -60,6 +60,9 @@ public class DashboardDtos {
         private String ligneName;
         private String busImmatriculation;
         private String trajetStatus;
+        private long totalTrajets;
+        private int placesDisponibles;
+        private long trajetsParSemaine;
     }
 
     @Getter

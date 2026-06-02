@@ -65,4 +65,9 @@ public class PaiementService {
                 .orElseThrow(() -> BusinessException.notFound("Aucun paiement trouvé pour cette inscription"));
         return mapper.toPaiementResponse(paiement);
     }
+
+    public List<PaiementDtos.PaiementResponse> getAllPaiements() {
+        return paiementRepository.findAll()
+                .stream().map(mapper::toPaiementResponse).toList();
+    }
 }

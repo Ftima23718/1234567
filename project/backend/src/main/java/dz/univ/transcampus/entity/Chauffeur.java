@@ -15,7 +15,7 @@ public class Chauffeur {
     @Id
     private String id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @MapsId
     @JoinColumn(name = "id")
     private Utilisateur utilisateur;
@@ -23,6 +23,6 @@ public class Chauffeur {
     @Column(name = "numero_permis", unique = true, nullable = false)
     private String numeroPermis;
 
-    @OneToMany(mappedBy = "chauffeur")
+    @OneToMany(mappedBy = "chauffeur", fetch = FetchType.EAGER)
     private List<Trajet> trajets;
 }

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,24 +23,74 @@ public class DataInitializer implements CommandLineRunner {
     private final LigneRepository ligneRepository;
     private final ArretRepository arretRepository;
     private final BusRepository busRepository;
+    private final TrajetRepository trajetRepository;
     private final TarifRepository tarifRepository;
     private final InscriptionRepository inscriptionRepository;
     private final PaiementRepository paiementRepository;
+    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
+    @Transactional
     public void run(String... args) {
         System.out.println("\n🔄 DataInitializer starting...");
         
         if (isDatabaseEmpty()) {
             System.out.println("📊 Database is empty. Seeding demo data...");
             seedDemoData();
+        } else if (trajetRepository.count() == 0) {
+            System.out.println("📊 Database contains users and routes but no trajets. Seeding driver trajets...");
+            seedDriverTrajets();
         } else {
-            System.out.println("✅ Database already contains data. Skipping seeding.");
+            System.out.println("✅ Database already contains data and trajets. Skipping seeding.");
         }
 
         ensureDefaultAdminExists();
         System.out.println("✅ DataInitializer completed successfully!\n");
+    }
+
+    private void seedDriverTrajets() {
+        if (utilisateurRepository.findByEmail("chauffeur1@transcampus.dz").isEmpty()
+                || utilisateurRepository.findByEmail("chauffeur2@transcampus.dz").isEmpty()
+                || ligneRepository.count() < 2
+                || busRepository.count() < 3) {
+            System.out.println("ℹ️ Insufficient data to create driver trajets. Please verify chauffeurs, lignes, and buses exist.");
+            return;
+        }
+
+        Utilisateur chauffeur1User = utilisateurRepository.findByEmail("chauffeur1@transcampus.dz").orElseThrow();
+        Chauffeur chauffeur1 = chauffeurRepository.findById(chauffeur1User.getId()).orElseThrow();
+
+        Utilisateur chauffeur2User = utilisateurRepository.findByEmail("chauffeur2@transcampus.dz").orElseThrow();
+        Chauffeur chauffeur2 = chauffeurRepository.findById(chauffeur2User.getId()).orElseThrow();
+
+        List<Ligne> lignes = ligneRepository.findAll();
+        List<Bus> buses = busRepository.findAll();
+        if (lignes.size() < 2 || buses.size() < 3) {
+            System.out.println("ℹ️ Pas assez de lignes ou de bus pour créer les trajets.");
+            return;
+        }
+
+        Trajet trajet1 = new Trajet();
+        trajet1.setLigne(lignes.get(0));
+        trajet1.setBus(buses.get(0));
+        trajet1.setChauffeur(chauffeur1);
+        trajet1.setHeureDepart("07:30");
+        trajet1.setHeureArrivee("08:15");
+        trajet1.setPlacesDisponibles(buses.get(0).getCapacite());
+        trajet1.setJoursSemaine(List.of("Lun", "Mar", "Mer", "Jeu", "Ven"));
+
+        Trajet trajet2 = new Trajet();
+        trajet2.setLigne(lignes.get(1));
+        trajet2.setBus(buses.get(2));
+        trajet2.setChauffeur(chauffeur2);
+        trajet2.setHeureDepart("08:00");
+        trajet2.setHeureArrivee("08:45");
+        trajet2.setPlacesDisponibles(buses.get(2).getCapacite());
+        trajet2.setJoursSemaine(List.of("Lun", "Mar", "Mer", "Jeu", "Ven"));
+
+        trajetRepository.saveAllAndFlush(List.of(trajet1, trajet2));
+        System.out.println("   ✓ Trajets created: 2 trajets (chauffeur1 → Ligne A, chauffeur2 → Ligne B)");
     }
 
     private boolean isDatabaseEmpty() {
@@ -57,49 +108,32 @@ public class DataInitializer implements CommandLineRunner {
         String defaultPassword = "password123";
         String encodedPassword = passwordEncoder.encode(defaultPassword);
 
-        List<Utilisateur> createdUsers = new ArrayList<>();
-
         // Create Admin
         System.out.println("👤 Creating admin user...");
-        createdUsers.add(createAndPersistAdmin(encodedPassword));
+        createAndPersistAdmin(encodedPassword);
         System.out.println("   ✓ Admin created: admin@transcampus.dz");
 
         // Create Responsables
         System.out.println("👥 Creating responsable users...");
-        createdUsers.add(createAndPersistResponsible("Benali", "Rachid", "responsable@transcampus.dz", "0550000002", encodedPassword));
-        createdUsers.add(createAndPersistResponsible("Bensaid", "Nora", "responsable2@transcampus.dz", "0550000003", encodedPassword));
-        System.out.println("   ✓ Responsables created: 2 users");
+        createAndPersistResponsible("Benali", "Rachid", "responsable@transcampus.dz", "0550000002", encodedPassword);
+        System.out.println("   ✓ Responsable created: responsable@transcampus.dz");
 
-        // Create Drivers
+        // Create Drivers (2 drivers as per requirements)
         System.out.println("🚗 Creating driver users...");
-        createdUsers.add(createAndPersistDriver("Hadj", "Mohamed", "chauffeur1@transcampus.dz", "0661000001", encodedPassword, "PERM-2024-001"));
-        createdUsers.add(createAndPersistDriver("Slimani", "Ali", "chauffeur2@transcampus.dz", "0661000002", encodedPassword, "PERM-2024-002"));
-        createdUsers.add(createAndPersistDriver("Bouzid", "Rachid", "chauffeur3@transcampus.dz", "0661000003", encodedPassword, "PERM-2024-003"));
-        System.out.println("   ✓ Drivers created: 3 users");
+        createAndPersistDriver("Hadj", "Mohamed", "chauffeur1@transcampus.dz", "0661000001", encodedPassword, "PERM-2024-001");
+        createAndPersistDriver("Slimani", "Ali", "chauffeur2@transcampus.dz", "0661000002", encodedPassword, "PERM-2024-002");
+        System.out.println("   ✓ Drivers created: 2 users");
 
-        // Create Students
+        // Create Students (exactly as specified)
         System.out.println("🎓 Creating student users...");
-        String[][] etudiants = {
-                {"Ahmed", "Benali", "ahmed@univ.dz", "0555000001", "ETU2024001", "Informatique", "3"},
-                {"Fatima", "Kaci", "fatima@univ.dz", "0555000002", "ETU2024002", "Mathematiques", "2"},
-                {"Youcef", "Boudiaf", "youcef@univ.dz", "0555000003", "ETU2024003", "Physique", "1"},
-                {"Sara", "Merad", "sara@univ.dz", "0555000004", "ETU2024004", "Chimie", "4"},
-                {"Karim", "Zeroual", "karim@univ.dz", "0555000005", "ETU2024005", "Electronique", "2"},
-                {"Amina", "Cherif", "amina@univ.dz", "0555000006", "ETU2024006", "Informatique", "1"},
-                {"Lyes", "Mebarki", "lyes@univ.dz", "0555000007", "ETU2024007", "Gestion", "2"},
-                {"Nadia", "Hammou", "nadia@univ.dz", "0555000008", "ETU2024008", "Marketing", "3"}
-        };
-
-        int studentCount = 0;
-        for (String[] e : etudiants) {
-            createdUsers.add(createAndPersistStudent(e[1], e[0], e[2], e[3], encodedPassword, e[4], e[5], Integer.parseInt(e[6])));
-            studentCount++;
-        }
-        System.out.println("   ✓ Students created: " + studentCount + " users");
-
-        // Verify users in DB
-        long totalUsers = utilisateurRepository.count();
-        System.out.println("   📊 Total users in database: " + totalUsers);
+        List<Utilisateur> students = new ArrayList<>();
+        students.add(createAndPersistStudent("Benali", "Ahmed", "ahmed@univ.dz", "0555000001", encodedPassword, "ETU2024001", "Informatique", 3));
+        students.add(createAndPersistStudent("Kaci", "Fatima", "fatima@univ.dz", "0555000002", encodedPassword, "ETU2024002", "Mathematiques", 2));
+        students.add(createAndPersistStudent("Boudiaf", "Youcef", "youcef@univ.dz", "0555000003", encodedPassword, "ETU2024003", "Physique", 1));
+        students.add(createAndPersistStudent("Merad", "Sara", "sara@univ.dz", "0555000004", encodedPassword, "ETU2024004", "Chimie", 4));
+        students.add(createAndPersistStudent("Zeroual", "Karim", "karim@univ.dz", "0555000005", encodedPassword, "ETU2024005", "Electronique", 2));
+        students.add(createAndPersistStudent("Cherif", "Amina", "amina@univ.dz", "0555000006", encodedPassword, "ETU2024006", "Informatique", 1));
+        System.out.println("   ✓ Students created: " + students.size() + " users");
 
         // Create Lines
         System.out.println("🛣️  Creating lines (Lignes)...");
@@ -111,32 +145,66 @@ public class DataInitializer implements CommandLineRunner {
         ligneRepository.saveAllAndFlush(lignes);
         System.out.println("   ✓ Lines created: " + ligneRepository.count() + " lines");
 
-        // Create Stops
+        // Create Stops (3 per ligne)
         System.out.println("🚏 Creating stops (Arrets)...");
         List<Arret> arrets = List.of(
                 createArret("Place des Martyrs", "Place des Martyrs, Centre", 1, lignes.get(0)),
                 createArret("Hopital Central", "Rue de l'Hopital", 2, lignes.get(0)),
-                createArret("Faculte de Droit", "Boulevard de la Republique", 3, lignes.get(0)),
-                createArret("Campus Principal", "Campus Principal", 4, lignes.get(0)),
+                createArret("Campus Principal", "Campus Principal", 3, lignes.get(0)),
                 createArret("Gare Sud", "Gare Routiere Sud", 1, lignes.get(1)),
                 createArret("Marche Central", "Marche Central", 2, lignes.get(1)),
                 createArret("Campus Sciences", "Campus Sciences", 3, lignes.get(1)),
                 createArret("Campus Principal", "Campus Principal", 1, lignes.get(2)),
-                createArret("Campus Technologie", "Campus Technologie", 2, lignes.get(2))
+                createArret("Campus Technologie", "Campus Technologie", 2, lignes.get(2)),
+                createArret("Bibliotheque", "Bibliotheque Universitaire", 3, lignes.get(2))
         );
         arretRepository.saveAllAndFlush(arrets);
         System.out.println("   ✓ Stops created: " + arretRepository.count() + " stops");
 
-        // Create Buses
+        // Create Buses (2 per ligne)
         System.out.println("🚌 Creating buses...");
         List<Bus> buses = List.of(
                 createBus("TRAN-001", "Mercedes", "Citaro", 50, Bus.StatutBus.ACTIF, lignes.get(0)),
                 createBus("TRAN-002", "MAN", "Lion City", 45, Bus.StatutBus.ACTIF, lignes.get(0)),
                 createBus("TRAN-003", "Volvo", "7900", 55, Bus.StatutBus.ACTIF, lignes.get(1)),
-                createBus("TRAN-004", "Iveco", "Urbanway", 40, Bus.StatutBus.ACTIF, lignes.get(2))
+                createBus("TRAN-004", "Iveco", "Urbanway", 40, Bus.StatutBus.ACTIF, lignes.get(1)),
+                createBus("TRAN-005", "Mercedes", "Citaro", 50, Bus.StatutBus.ACTIF, lignes.get(2)),
+                createBus("TRAN-006", "MAN", "Lion City", 45, Bus.StatutBus.ACTIF, lignes.get(2))
         );
         busRepository.saveAllAndFlush(buses);
         System.out.println("   ✓ Buses created: " + busRepository.count() + " buses");
+
+        // Create Trajets (Driver assignments)
+        System.out.println("🗓️ Creating trajets (driver assignments)...");
+        Utilisateur chauffeur1User = utilisateurRepository.findByEmail("chauffeur1@transcampus.dz").orElseThrow();
+        Chauffeur chauffeur1 = chauffeurRepository.findById(chauffeur1User.getId()).orElseThrow();
+
+        Utilisateur chauffeur2User = utilisateurRepository.findByEmail("chauffeur2@transcampus.dz").orElseThrow();
+        Chauffeur chauffeur2 = chauffeurRepository.findById(chauffeur2User.getId()).orElseThrow();
+
+        // Trajet 1 — Ligne A, assigned to chauffeur1
+        Trajet trajet1 = new Trajet();
+        trajet1.setLigne(lignes.get(0));
+        trajet1.setBus(buses.get(0));
+        trajet1.setChauffeur(chauffeur1);
+        trajet1.setHeureDepart("07:30");
+        trajet1.setHeureArrivee("08:15");
+        trajet1.setPlacesDisponibles(buses.get(0).getCapacite());
+        trajet1.setJoursSemaine(List.of("Lun", "Mar", "Mer", "Jeu", "Ven"));
+
+        // Trajet 2 — Ligne B, assigned to chauffeur2
+        Trajet trajet2 = new Trajet();
+        trajet2.setLigne(lignes.get(1));
+        trajet2.setBus(buses.get(2));
+        trajet2.setChauffeur(chauffeur2);
+        trajet2.setHeureDepart("08:00");
+        trajet2.setHeureArrivee("08:45");
+        trajet2.setPlacesDisponibles(buses.get(2).getCapacite());
+        trajet2.setJoursSemaine(List.of("Lun", "Mar", "Mer", "Jeu", "Ven"));
+
+        List<Trajet> trajets = List.of(trajet1, trajet2);
+        trajetRepository.saveAllAndFlush(trajets);
+        System.out.println("   ✓ Trajets created: 2 trajets (chauffeur1 → Ligne A, chauffeur2 → Ligne B)");
 
         // Create Tariffs
         System.out.println("💰 Creating tariffs...");
@@ -148,46 +216,67 @@ public class DataInitializer implements CommandLineRunner {
         tarifRepository.saveAllAndFlush(tarifs);
         System.out.println("   ✓ Tariffs created: " + tarifRepository.count() + " tariffs");
 
-        // Create Inscriptions
-        System.out.println("📝 Creating inscriptions...");
-        List<Utilisateur> students = utilisateurRepository.findAll().stream()
-                .filter(u -> u.getRole() == Utilisateur.Role.STUDENT)
-                .toList();
+        // Create Inscriptions with Paiements
+        System.out.println("📝 Creating inscriptions and payments...");
 
-        List<Inscription> inscriptions = new ArrayList<>();
-        for (int i = 0; i < students.size(); i++) {
-            Utilisateur student = students.get(i);
-            Ligne ligne = lignes.get(i % lignes.size());
-            Arret arret = arrets.get(i % arrets.size());
-            Inscription inscription = new Inscription();
-            inscription.setEtudiant(student);
-            inscription.setLigne(ligne);
-            inscription.setArret(arret);
-            inscription.setTypeAbonnement(Inscription.TypeAbonnement.values()[i % Inscription.TypeAbonnement.values().length]);
-            inscription.setStatut(i % 2 == 0 ? Inscription.StatutInscription.VALIDEE : Inscription.StatutInscription.EN_ATTENTE);
-            inscription.setDateDebut(LocalDate.now().minusDays(10));
-            inscription.setDateFin(LocalDate.now().plusDays(30 + i * 5));
-            inscriptions.add(inscription);
-        }
-        inscriptionRepository.saveAllAndFlush(inscriptions);
+        // Ahmed → Ligne A, ANNUEL, VALIDEE, PAYE
+        Inscription insc1 = createInscription(students.get(0), lignes.get(0), arrets.get(0), Inscription.TypeAbonnement.ANNUEL, Inscription.StatutInscription.VALIDEE);
+        insc1 = inscriptionRepository.saveAndFlush(insc1);
+        createPaiement(insc1, students.get(0), new BigDecimal("18000"), Paiement.ModePaiement.ESPECES, Paiement.StatutPaiement.PAYE, "PAY-1001");
+
+        // Fatima → Ligne B, SEMESTRIEL, VALIDEE, PAYE
+        Inscription insc2 = createInscription(students.get(1), lignes.get(1), arrets.get(4), Inscription.TypeAbonnement.SEMESTRIEL, Inscription.StatutInscription.VALIDEE);
+        insc2 = inscriptionRepository.saveAndFlush(insc2);
+        createPaiement(insc2, students.get(1), new BigDecimal("10000"), Paiement.ModePaiement.VIREMENT, Paiement.StatutPaiement.PAYE, "PAY-1002");
+
+        // Youcef → Ligne A, MENSUEL, EN_ATTENTE, EN_ATTENTE
+        Inscription insc3 = createInscription(students.get(2), lignes.get(0), arrets.get(1), Inscription.TypeAbonnement.MENSUEL, Inscription.StatutInscription.EN_ATTENTE);
+        insc3 = inscriptionRepository.saveAndFlush(insc3);
+        createPaiement(insc3, students.get(2), new BigDecimal("2000"), Paiement.ModePaiement.VIREMENT, Paiement.StatutPaiement.EN_ATTENTE, "PAY-1003");
+
+        // Sara → Ligne C, ANNUEL, EN_ATTENTE, EN_ATTENTE
+        Inscription insc4 = createInscription(students.get(3), lignes.get(2), arrets.get(7), Inscription.TypeAbonnement.ANNUEL, Inscription.StatutInscription.EN_ATTENTE);
+        insc4 = inscriptionRepository.saveAndFlush(insc4);
+        createPaiement(insc4, students.get(3), new BigDecimal("18000"), Paiement.ModePaiement.ESPECES, Paiement.StatutPaiement.EN_ATTENTE, "PAY-1004");
+
+        // Add a few more inscriptions for other students
+        Inscription insc5 = createInscription(students.get(4), lignes.get(1), arrets.get(3), Inscription.TypeAbonnement.SEMESTRIEL, Inscription.StatutInscription.VALIDEE);
+        insc5 = inscriptionRepository.saveAndFlush(insc5);
+        createPaiement(insc5, students.get(4), new BigDecimal("10000"), Paiement.ModePaiement.VIREMENT, Paiement.StatutPaiement.PAYE, "PAY-1005");
+
+        Inscription insc6 = createInscription(students.get(5), lignes.get(0), arrets.get(2), Inscription.TypeAbonnement.MENSUEL, Inscription.StatutInscription.VALIDEE);
+        insc6 = inscriptionRepository.saveAndFlush(insc6);
+        createPaiement(insc6, students.get(5), new BigDecimal("2000"), Paiement.ModePaiement.ESPECES, Paiement.StatutPaiement.PAYE, "PAY-1006");
+
         System.out.println("   ✓ Inscriptions created: " + inscriptionRepository.count() + " inscriptions");
 
-        // Create Payments
-        System.out.println("💳 Creating payments...");
-        List<Paiement> paiements = new ArrayList<>();
-        for (int i = 0; i < inscriptions.size(); i++) {
-            Inscription inscription = inscriptions.get(i);
-            Paiement paiement = new Paiement();
-            paiement.setInscription(inscription);
-            paiement.setEtudiant(inscription.getEtudiant());
-            paiement.setMontant(new BigDecimal("2000").add(new BigDecimal(i * 500)));
-            paiement.setModePaiement(i % 2 == 0 ? Paiement.ModePaiement.VIREMENT : Paiement.ModePaiement.ESPECES);
-            paiement.setStatut(i % 2 == 0 ? Paiement.StatutPaiement.PAYE : Paiement.StatutPaiement.EN_ATTENTE);
-            paiement.setReferenceTransaction("PAY-" + (1000 + i));
-            paiements.add(paiement);
-        }
-        paiementRepository.saveAllAndFlush(paiements);
-        System.out.println("   ✓ Payments created: " + paiementRepository.count() + " payments");
+        // Create Notifications
+        System.out.println("🔔 Creating notifications...");
+        Utilisateur adminUser = utilisateurRepository.findByEmail("admin@transcampus.dz").orElseThrow();
+        Utilisateur responsableUser = utilisateurRepository.findByEmail("responsable@transcampus.dz").orElseThrow();
+        
+        Notification notif1 = new Notification();
+        notif1.setUtilisateur(adminUser);
+        notif1.setMessage("Bienvenue sur TransCampus ! Le système est opérationnel.");
+        notif1.setType(Notification.Type.info);
+        notif1.setEstLue(false);
+        notificationRepository.save(notif1);
+
+        Notification notif2 = new Notification();
+        notif2.setUtilisateur(responsableUser);
+        notif2.setMessage("Nouvelle inscription en attente de validation.");
+        notif2.setType(Notification.Type.warning);
+        notif2.setEstLue(false);
+        notificationRepository.save(notif2);
+
+        Notification notif3 = new Notification();
+        notif3.setUtilisateur(adminUser);
+        notif3.setMessage("Rapports mensuels disponibles pour consultation.");
+        notif3.setType(Notification.Type.info);
+        notif3.setEstLue(false);
+        notificationRepository.save(notif3);
+
+        System.out.println("   ✓ Notifications created");
 
         // Summary
         System.out.println("\n✅ DATABASE SEEDING COMPLETED SUCCESSFULLY!");
@@ -197,9 +286,11 @@ public class DataInitializer implements CommandLineRunner {
         System.out.println("   🛣️  Lignes: " + ligneRepository.count());
         System.out.println("   🚏 Arrets: " + arretRepository.count());
         System.out.println("   🚌 Bus: " + busRepository.count());
+        System.out.println("   🗓️ Trajets: " + trajetRepository.count());
         System.out.println("   💰 Tarifs: " + tarifRepository.count());
         System.out.println("   📝 Inscriptions: " + inscriptionRepository.count());
         System.out.println("   💳 Paiements: " + paiementRepository.count());
+        System.out.println("   🔔 Notifications: " + notificationRepository.count());
         System.out.println("═══════════════════════════════════════════════");
         System.out.println("\n🔑 LOGIN CREDENTIALS:");
         System.out.println("   Admin        : admin@transcampus.dz / " + defaultPassword);
@@ -307,5 +398,29 @@ public class DataInitializer implements CommandLineRunner {
         tarif.setMontant(montant);
         tarif.setDescription(description);
         return tarif;
+    }
+
+    private Inscription createInscription(Utilisateur etudiant, Ligne ligne, Arret arret, Inscription.TypeAbonnement typeAbonnement, Inscription.StatutInscription statut) {
+        Inscription inscription = new Inscription();
+        inscription.setEtudiant(etudiant);
+        inscription.setLigne(ligne);
+        inscription.setArret(arret);
+        inscription.setTypeAbonnement(typeAbonnement);
+        inscription.setStatut(statut);
+        inscription.setDateDebut(LocalDate.now().minusDays(5));
+        inscription.setDateFin(LocalDate.now().plusDays(90));
+        return inscription;
+    }
+
+    private Paiement createPaiement(Inscription inscription, Utilisateur etudiant, BigDecimal montant, Paiement.ModePaiement modePaiement, Paiement.StatutPaiement statut, String referenceTransaction) {
+        Paiement paiement = new Paiement();
+        paiement.setInscription(inscription);
+        paiement.setEtudiant(etudiant);
+        paiement.setMontant(montant);
+        paiement.setModePaiement(modePaiement);
+        paiement.setStatut(statut);
+        paiement.setReferenceTransaction(referenceTransaction);
+        paiementRepository.saveAndFlush(paiement);
+        return paiement;
     }
 }

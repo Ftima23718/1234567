@@ -10,6 +10,11 @@ import {
   getMyNotifications,
   getMyPaiements,
   getTarifs,
+  createBus,
+  createChauffeur,
+  createArret,
+  createTrajet,
+  createLigne,
 } from '../api/apiService';
 
 export async function fetchLignes(activeOnly = false) {
@@ -32,9 +37,8 @@ export async function fetchBus() {
 }
 
 export async function fetchTrajets(ligneId: string) {
-  const data = await axiosClient.get('/trajets');
-  const trajets = data.data;
-  return Array.isArray(trajets) ? trajets.filter((trajet: any) => trajet.ligneId === ligneId) : trajets;
+  const { data } = await axiosClient.get(`/lignes/${ligneId}/trajets`);
+  return Array.isArray(data) ? data : [];
 }
 
 export async function fetchMyInscriptions() {
@@ -74,3 +78,6 @@ export async function verifyBadge(qrCode: string) {
   const { data } = await axiosClient.post('/badges/verify', { qrCode });
   return data;
 }
+
+// Export create functions for responsible pages
+export { createBus, createChauffeur, createArret, createTrajet, createLigne };

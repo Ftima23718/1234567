@@ -35,7 +35,7 @@ public class TransportController {
     }
 
     @PostMapping("/admin/lignes")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
     public ResponseEntity<TransportDtos.LigneResponse> createLigne(@Valid @RequestBody TransportDtos.LigneRequest req) {
         return ResponseEntity.ok(transportService.createLigne(req));
     }
@@ -62,7 +62,7 @@ public class TransportController {
     }
 
     @PostMapping("/admin/arrets")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
     public ResponseEntity<TransportDtos.ArretResponse> createArret(@Valid @RequestBody TransportDtos.ArretRequest req) {
         return ResponseEntity.ok(transportService.createArret(req));
     }
@@ -88,13 +88,13 @@ public class TransportController {
     }
 
     @PostMapping("/admin/bus")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
     public ResponseEntity<TransportDtos.BusResponse> createBus(@Valid @RequestBody TransportDtos.BusRequest req) {
         return ResponseEntity.ok(transportService.createBus(req));
     }
 
     @PatchMapping("/driver/bus/{busId}/status")
-    @PreAuthorize("hasAnyRole('ADMIN','DRIVER')")
+    @PreAuthorize("hasAnyRole('ADMIN','DRIVER','RESPONSIBLE')")
     public ResponseEntity<TransportDtos.BusResponse> updateBusStatus(
             @PathVariable String busId, @Valid @RequestBody TransportDtos.BusStatusRequest req) {
         return ResponseEntity.ok(transportService.updateBusStatus(busId, req));
@@ -108,7 +108,7 @@ public class TransportController {
     }
 
     @PostMapping("/admin/trajets")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
     public ResponseEntity<TransportDtos.TrajetResponse> createTrajet(@Valid @RequestBody TransportDtos.TrajetRequest req) {
         return ResponseEntity.ok(transportService.createTrajet(req));
     }
@@ -116,7 +116,7 @@ public class TransportController {
     // === CHAUFFEURS ===
 
     @PostMapping("/auth/chauffeur")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
     public ResponseEntity<dz.univ.transcampus.dto.AuthDtos.AuthResponse> registerChauffeur(
             @Valid @RequestBody TransportDtos.ChauffeurRequest req) {
         return ResponseEntity.ok(authService.registerChauffeur(req));

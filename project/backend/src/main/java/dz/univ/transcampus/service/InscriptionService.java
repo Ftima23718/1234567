@@ -63,12 +63,27 @@ public class InscriptionService {
         return mapper.toInscriptionResponse(inscription);
     }
 
+    @Transactional(readOnly = true)
     public InscriptionDtos.InscriptionListResponse getStudentInscriptions(String studentId, int page, int size) {
         Page<Inscription> pageResult = inscriptionRepository.findByEtudiantId(
                 studentId, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "dateInscription")));
 
+        // Force initialization of lazy relationships while session is active
         List<InscriptionDtos.InscriptionResponse> content = pageResult.getContent()
-                .stream().map(mapper::toInscriptionResponse).toList();
+                .stream()
+                .peek(i -> {
+                    // Trigger lazy loading while session is open
+                    if (i.getEtudiant() != null) {
+                        i.getEtudiant().getId();
+                    }
+                    if (i.getLigne() != null) {
+                        i.getLigne().getId();
+                    }
+                    if (i.getArret() != null) {
+                        i.getArret().getId();
+                    }
+                })
+                .map(mapper::toInscriptionResponse).toList();
 
         return InscriptionDtos.InscriptionListResponse.builder()
                 .content(content)
@@ -79,17 +94,31 @@ public class InscriptionService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
     public List<InscriptionDtos.InscriptionResponse> getPendingInscriptions() {
         return inscriptionRepository.findByStatut(Inscription.StatutInscription.EN_ATTENTE)
-                .stream().map(mapper::toInscriptionResponse).toList();
+                .stream()
+                .peek(i -> {
+                    if (i.getEtudiant() != null) i.getEtudiant().getId();
+                    if (i.getLigne() != null) i.getLigne().getId();
+                    if (i.getArret() != null) i.getArret().getId();
+                })
+                .map(mapper::toInscriptionResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public InscriptionDtos.InscriptionListResponse getAllInscriptions(int page, int size) {
         Page<Inscription> pageResult = inscriptionRepository.findAll(
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "dateInscription")));
 
         List<InscriptionDtos.InscriptionResponse> content = pageResult.getContent()
-                .stream().map(mapper::toInscriptionResponse).toList();
+                .stream()
+                .peek(i -> {
+                    if (i.getEtudiant() != null) i.getEtudiant().getId();
+                    if (i.getLigne() != null) i.getLigne().getId();
+                    if (i.getArret() != null) i.getArret().getId();
+                })
+                .map(mapper::toInscriptionResponse).toList();
 
         return InscriptionDtos.InscriptionListResponse.builder()
                 .content(content)

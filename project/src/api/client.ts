@@ -5,7 +5,8 @@ export const apiClient = axiosClient;
 
 export function getApiErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
-    const serverMessage = error.response?.data?.message || error.response?.data?.error;
+    const data = error.response?.data as Record<string, unknown> | undefined;
+    const serverMessage = data?.message ?? data?.detail ?? data?.error;
     if (typeof serverMessage === 'string' && serverMessage.trim()) return serverMessage;
     if (error.message) return error.message;
   }

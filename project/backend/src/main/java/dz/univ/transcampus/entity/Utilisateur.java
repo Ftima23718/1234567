@@ -43,10 +43,10 @@ public class Utilisateur {
     @Column(name = "date_creation", updatable = false)
     private Instant dateCreation;
 
-    @OneToOne(mappedBy = "utilisateur", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @OneToOne(mappedBy = "utilisateur", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private Etudiant etudiant;
 
-    @OneToOne(mappedBy = "utilisateur", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @OneToOne(mappedBy = "utilisateur", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private Chauffeur chauffeur;
 
     @Transient

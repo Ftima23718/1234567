@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Plus, Edit2, Trash2 } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { fetchArrets, fetchLignes } from '../../services/transport';
+import { useToast } from '../../components/ui/useToast';
 
 export default function ResponsibleArrets() {
   const [showModal, setShowModal] = useState(false);
   const [filterLigne, setFilterLigne] = useState('all');
   const [lignes, setLignes] = useState<any[]>([]);
   const [arrets, setArrets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  const [loadingAdd, setLoadingAdd] = useState(false);
+  const [form, setForm] = useState({ nom: '', adresse: '', ligneId: '', ordre: '1' });
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = () => {
     fetchLignes()
       .then((lig) => {
         const lineData = Array.isArray(lig) ? lig : lig.content ?? [];
@@ -20,9 +30,39 @@ export default function ResponsibleArrets() {
         setLignes([]);
         setArrets([]);
       });
-  }, []);
+  };
 
   const filtered = filterLigne === 'all' ? arrets : arrets.filter((a) => a.ligneId === filterLigne);
+
+  const handleAdd = async () => {
+    if (!form.nom || !form.ligneId) {
+      toast('warning', 'Nom et ligne sont obligatoires');
+      return;
+    }
+    setLoadingAdd(true);
+    try {
+      await axiosClient.post('/admin/arrets', {
+        nom: form.nom,
+        adresse: form.adresse || '',
+        ligneId: form.ligneId,
+        ordre: parseInt(form.ordre) || 1,
+      });
+      toast('success', 'Arrêt ajouté avec succès');
+      setShowModal(false);
+      setForm({ nom: '', adresse: '', ligneId: '', ordre: '1' });
+      // Recharger
+      fetchLignes().then((lig: any[]) => {
+        setLignes(lig || []);
+        Promise.all((lig || []).map((l: any) =>
+          axiosClient.get(`/lignes/${l.id}/arrets`).then(r => r.data).catch(() => [])
+        )).then(all => setArrets((all as any[][]).flat()));
+      });
+    } catch (err: any) {
+      toast('error', err?.response?.data?.message || 'Erreur lors de l\'ajout de l\'arret');
+    } finally {
+      setLoadingAdd(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -97,16 +137,19 @@ export default function ResponsibleArrets() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'arret</label>
-                <input className="input-field" placeholder="Ex: Place de la Gare" />
+                <input className="input-field" placeholder="Ex: Place de la Gare"
+                  value={form.nom} onChange={e => setForm(p => ({ ...p, nom: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Adresse</label>
-                <input className="input-field" placeholder="Adresse complete" />
+                <input className="input-field" placeholder="Adresse complete"
+                  value={form.adresse} onChange={e => setForm(p => ({ ...p, adresse: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ligne</label>
-                  <select className="input-field">
+                  <select className="input-field" value={form.ligneId}
+                    onChange={e => setForm(p => ({ ...p, ligneId: e.target.value }))}>
                     <option value="">Choisir une ligne</option>
                     {lignes.filter((l) => l.estActive).map((l) => (
                       <option key={l.id} value={l.id}>{l.nom}</option>
@@ -115,12 +158,15 @@ export default function ResponsibleArrets() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Ordre</label>
-                  <input type="number" className="input-field" placeholder="1" min={1} />
+                  <input type="number" className="input-field" placeholder="1" min={1}
+                    value={form.ordre} onChange={e => setForm(p => ({ ...p, ordre: e.target.value }))} />
                 </div>
               </div>
               <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={() => setShowModal(false)} className="btn-primary flex-1">Ajouter</button>
+                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1" disabled={loadingAdd}>Annuler</button>
+                <button onClick={handleAdd} disabled={loadingAdd} className="btn-primary flex-1">
+                  {loadingAdd ? 'Ajout...' : 'Ajouter'}
+                </button>
               </div>
             </div>
           </div>

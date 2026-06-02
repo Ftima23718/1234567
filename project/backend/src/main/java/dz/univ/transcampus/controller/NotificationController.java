@@ -26,6 +26,11 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.getAll(auth.getName()));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<List<NotificationDtos.NotificationResponse>> getMyNotifications(Authentication auth) {
+        return ResponseEntity.ok(notificationService.getAll(auth.getName()));
+    }
+
     @PutMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable String id, Authentication auth) {
         notificationService.markAsRead(id, auth.getName());

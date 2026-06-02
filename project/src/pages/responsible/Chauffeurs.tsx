@@ -1,13 +1,31 @@
 import { useEffect, useState } from 'react';
 import { Truck, Plus, Edit2, Trash2, Phone, Mail, Clock } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { fetchChauffeurs, fetchLignes, fetchTrajets } from '../../services/transport';
+import { useToast } from '../../components/ui/useToast';
 
 export default function ResponsibleChauffeurs() {
   const [showModal, setShowModal] = useState(false);
   const [chauffeurs, setChauffeurs] = useState<any[]>([]);
   const [trajets, setTrajets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: '',
+    numeroPermis: '',
+    password: ''
+  });
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = () => {
     Promise.all([fetchChauffeurs(), fetchLignes()])
       .then(([ch, lig]) => {
         const chauffeurData = Array.isArray(ch) ? ch : ch.content ?? [];
@@ -20,7 +38,50 @@ export default function ResponsibleChauffeurs() {
         setChauffeurs([]);
         setTrajets([]);
       });
-  }, []);
+  };
+
+  const handleAddChauffeur = async () => {
+    if (!formData.nom.trim() || !formData.prenom.trim() || !formData.email.trim() || !formData.telephone.trim() || !formData.numeroPermis.trim() || !formData.password.trim()) {
+      toast('error', 'Veuillez remplir tous les champs');
+      return;
+    }
+    if (formData.password.length < 6) {
+      toast('warning', 'Le mot de passe doit contenir au moins 6 caractères');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newChauffeurData = {
+        nom: formData.nom.trim(),
+        prenom: formData.prenom.trim(),
+        email: formData.email.trim(),
+        telephone: formData.telephone.trim(),
+        numeroPermis: formData.numeroPermis.trim(),
+        password: formData.password,
+      };
+
+      await axiosClient.post('/auth/chauffeur', newChauffeurData);
+      toast('success', 'Chauffeur ajouté avec succès');
+      
+      await loadData();
+      
+      setFormData({
+        nom: '',
+        prenom: '',
+        email: '',
+        telephone: '',
+        numeroPermis: '',
+        password: '',
+      });
+      setShowModal(false);
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du chauffeur:', error);
+      toast('error', 'Erreur lors de l\'ajout du chauffeur');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -97,28 +158,82 @@ export default function ResponsibleChauffeurs() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                  <input className="input-field" placeholder="Nom" />
+                  <input 
+                    className="input-field" 
+                    placeholder="Nom"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prenom</label>
-                  <input className="input-field" placeholder="Prenom" />
+                  <input 
+                    className="input-field" 
+                    placeholder="Prenom"
+                    value={formData.prenom}
+                    onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" className="input-field" placeholder="email@univ.dz" />
+                <input 
+                  type="email" 
+                  className="input-field" 
+                  placeholder="email@univ.dz"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  disabled={loading}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
-                <input className="input-field" placeholder="066 000 0000" />
+                <input 
+                  className="input-field" 
+                  placeholder="066 000 0000"
+                  value={formData.telephone}
+                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  disabled={loading}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Numero de permis</label>
-                <input className="input-field" placeholder="PERM-2025-XXX" />
+                <input 
+                  className="input-field" 
+                  placeholder="PERM-2025-XXX"
+                  value={formData.numeroPermis}
+                  onChange={(e) => setFormData({ ...formData, numeroPermis: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                <input 
+                  type="password"
+                  className="input-field" 
+                  placeholder="6 caractères minimum"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  disabled={loading}
+                />
               </div>
               <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={() => setShowModal(false)} className="btn-primary flex-1">Ajouter</button>
+                <button 
+                  onClick={() => setShowModal(false)} 
+                  className="btn-ghost flex-1"
+                  disabled={loading}
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={handleAddChauffeur} 
+                  className="btn-primary flex-1"
+                  disabled={loading}
+                >
+                  {loading ? 'Ajout...' : 'Ajouter'}
+                </button>
               </div>
             </div>
           </div>

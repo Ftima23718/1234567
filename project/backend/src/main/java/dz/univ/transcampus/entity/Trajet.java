@@ -18,15 +18,15 @@ public class Trajet {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "ligne_id", nullable = false)
     private Ligne ligne;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "bus_id")
     private Bus bus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "chauffeur_id")
     private Chauffeur chauffeur;
 
@@ -36,7 +36,7 @@ public class Trajet {
     @Column(name = "heure_arrivee", nullable = false)
     private String heureArrivee;
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "trajet_jours", joinColumns = @JoinColumn(name = "trajet_id"))
     @Column(name = "jours_semaine")
     @Builder.Default

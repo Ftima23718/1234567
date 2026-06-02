@@ -24,6 +24,12 @@ public class PaiementController {
         return ResponseEntity.ok(paiementService.recordPayment(req));
     }
 
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','RESPONSIBLE')")
+    public ResponseEntity<List<PaiementDtos.PaiementResponse>> getAllPaiements() {
+        return ResponseEntity.ok(paiementService.getAllPaiements());
+    }
+
     @GetMapping("/me")
     public ResponseEntity<List<PaiementDtos.PaiementResponse>> getMyPayments(Authentication auth) {
         return ResponseEntity.ok(paiementService.getStudentPayments(auth.getName()));

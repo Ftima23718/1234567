@@ -5,6 +5,7 @@ import dz.univ.transcampus.entity.*;
 import dz.univ.transcampus.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -19,6 +20,7 @@ public class DashboardService {
     private final BusRepository busRepository;
     private final NotificationRepository notificationRepository;
     private final ChauffeurRepository chauffeurRepository;
+    private final TrajetRepository trajetRepository;
 
     public DashboardDtos.DashboardResponse getSummary() {
         long totalEtudiants = utilisateurRepository.findAll().stream()
@@ -99,33 +101,61 @@ public class DashboardService {
                 .build();
     }
 
-    public DashboardDtos.DriverDashboardResponse getDriverDashboard(String email) {
-        Utilisateur user = utilisateurRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    @Transactional(readOnly = true)
+    public DashboardDtos.DriverDashboardResponse getDriverDashboard(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new RuntimeException("Invalid user ID");
+        }
+        Utilisateur user = utilisateurRepository.findById(userId.trim())
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
+        // Eagerly initialize chauffeur relationship
+        if (user.getChauffeur() != null) {
+            user.getChauffeur().getId();
+        }
         Chauffeur chauffeur = user.getChauffeur();
         if (chauffeur == null) {
             throw new RuntimeException("Chauffeur profile not found");
         }
 
+        List<Trajet> trajets = trajetRepository.findByChauffeurId(chauffeur.getId());
+        int totalPlaces = trajets.stream()
+                .mapToInt(t -> t.getPlacesDisponibles() == null ? 0 : t.getPlacesDisponibles())
+                .sum();
+        long trajetsParSemaine = trajets.stream()
+                .mapToLong(t -> t.getJoursSemaine() == null ? 0 : t.getJoursSemaine().size())
+                .sum();
+
         return DashboardDtos.DriverDashboardResponse.builder()
                 .chauffeurNom(user.getNom())
                 .chauffeurPrenom(user.getPrenom())
-                .trajetId("N/A") // Trajets not fully implemented
-                .ligneName("N/A")
-                .busImmatriculation("N/A")
-                .trajetStatus("PENDING")
+                .trajetId(trajets.isEmpty() ? "N/A" : trajets.get(0).getId())
+                .ligneName(trajets.isEmpty() ? "N/A" : trajets.get(0).getLigne().getNom())
+                .busImmatriculation(trajets.isEmpty() ? "N/A" : trajets.get(0).getBus().getImmatriculation())
+                .trajetStatus(trajets.isEmpty() ? "PENDING" : "ASSIGNED")
+                .totalTrajets(trajets.size())
+                .placesDisponibles(totalPlaces)
+                .trajetsParSemaine(trajetsParSemaine)
                 .build();
     }
 
-    public DashboardDtos.StudentDashboardResponse getStudentDashboard(String email) {
-        Utilisateur user = utilisateurRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    @Transactional(readOnly = true)
+    public DashboardDtos.StudentDashboardResponse getStudentDashboard(String userId) {
+        // Ensure userId is trimmed and not null
+        if (userId == null || userId.trim().isEmpty()) {
+            throw new RuntimeException("Invalid user ID");
+        }
+        Utilisateur user = utilisateurRepository.findById(userId.trim())
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-        // Get all inscriptions for this student
-        List<Inscription> inscriptions = inscriptionRepository.findAll().stream()
-                .filter(i -> i.getEtudiant().getId().equals(user.getId()))
-                .toList();
+        String etudiantId = user.getId();
+        List<Inscription> inscriptions = inscriptionRepository.findByEtudiantId(etudiantId);
+        
+        // Eagerly initialize lazy relationships
+        inscriptions.forEach(i -> {
+            if (i.getEtudiant() != null) i.getEtudiant().getId();
+            if (i.getLigne() != null) i.getLigne().getId();
+        });
 
         long totalInscriptions = inscriptions.size();
         long inscriptionsValidees = inscriptions.stream()

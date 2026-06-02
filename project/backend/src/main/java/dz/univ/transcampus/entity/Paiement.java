@@ -18,11 +18,11 @@ public class Paiement {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "inscription_id", nullable = false, unique = true)
     private Inscription inscription;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "etudiant_id", nullable = false)
     private Utilisateur etudiant;
 

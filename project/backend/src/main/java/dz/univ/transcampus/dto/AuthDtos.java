@@ -47,4 +47,20 @@ public class AuthDtos {
     public static class ForgotPasswordRequest {
         @NotBlank @Email private String email;
     }
+
+    @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+    public static class CreateUserRequest {
+        @NotBlank private String nom;
+        @NotBlank private String prenom;
+        @NotBlank @Email private String email;
+        @NotBlank private String telephone;
+        @NotBlank @Size(min = 6) private String password;
+        @NotBlank private String role; // ADMIN, RESPONSIBLE, DRIVER, STUDENT
+        // For STUDENT role
+        private String numeroEtudiant;
+        private String filiere;
+        private Integer anneeEtude;
+        // For DRIVER role
+        private String numeroPermis;
+    }
 }

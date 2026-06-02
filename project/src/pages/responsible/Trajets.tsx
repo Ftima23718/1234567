@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Clock, Plus, Edit2, Trash2, MapPin } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { fetchBus, fetchChauffeurs, fetchLignes, fetchTrajets } from '../../services/transport';
+import { useToast } from '../../components/ui/useToast';
+
+const JOURS_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
 export default function ResponsibleTrajets() {
   const [showModal, setShowModal] = useState(false);
@@ -9,8 +13,21 @@ export default function ResponsibleTrajets() {
   const [busList, setBusList] = useState<any[]>([]);
   const [chauffeurs, setChauffeurs] = useState<any[]>([]);
   const [trajets, setTrajets] = useState<any[]>([]);
+  const { toast } = useToast();
+  const [loadingAdd, setLoadingAdd] = useState(false);
+
+  // Form state
+  const [form, setForm] = useState({
+    ligneId: '', busId: '', chauffeurId: '',
+    heureDepart: '07:30', heureArrivee: '08:15',
+    joursSemaine: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'] as string[],
+  });
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = () => {
     Promise.all([fetchLignes(), fetchBus(), fetchChauffeurs()])
       .then(([lig, bus, ch]) => {
         const lineData = Array.isArray(lig) ? lig : lig.content ?? [];
@@ -26,9 +43,40 @@ export default function ResponsibleTrajets() {
         setChauffeurs([]);
         setTrajets([]);
       });
-  }, []);
+  };
 
   const filtered = filterLigne === 'all' ? trajets : trajets.filter((t) => t.ligneId === filterLigne);
+
+  const toggleJour = (j: string) =>
+    setForm(p => ({ ...p, joursSemaine: p.joursSemaine.includes(j)
+      ? p.joursSemaine.filter(x => x !== j)
+      : [...p.joursSemaine, j] }));
+
+  const handleAdd = async () => {
+    if (!form.ligneId || !form.heureDepart || !form.heureArrivee) {
+      toast('warning', 'Ligne et heures sont obligatoires');
+      return;
+    }
+    setLoadingAdd(true);
+    try {
+      await axiosClient.post('/admin/trajets', {
+        ligneId: form.ligneId,
+        busId: form.busId || null,
+        chauffeurId: form.chauffeurId || null,
+        heureDepart: form.heureDepart,
+        heureArrivee: form.heureArrivee,
+        joursSemaine: form.joursSemaine,
+      });
+      toast('success', 'Trajet créé avec succès');
+      setShowModal(false);
+      setForm({ ligneId: '', busId: '', chauffeurId: '', heureDepart: '07:30', heureArrivee: '08:15', joursSemaine: ['Lun','Mar','Mer','Jeu','Ven'] });
+      await loadData();
+    } catch (err: any) {
+      toast('error', err?.response?.data?.message || 'Erreur lors de la création');
+    } finally {
+      setLoadingAdd(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -127,7 +175,10 @@ export default function ResponsibleTrajets() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ligne</label>
-                <select className="input-field">
+                <select className="input-field" value={form.ligneId}
+                  onChange={(e) => setForm(p => ({ ...p, ligneId: e.target.value }))}
+                  disabled={loadingAdd}
+                >
                   <option value="">Choisir une ligne</option>
                   {lignes.filter((l) => l.estActive).map((l) => (
                     <option key={l.id} value={l.id}>{l.nom}</option>
@@ -137,7 +188,10 @@ export default function ResponsibleTrajets() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bus</label>
-                  <select className="input-field">
+                  <select className="input-field" value={form.busId}
+                    onChange={(e) => setForm(p => ({ ...p, busId: e.target.value }))}
+                    disabled={loadingAdd}
+                  >
                     <option value="">Choisir un bus</option>
                     {busList.filter((b) => b.statut === 'ACTIF').map((b) => (
                       <option key={b.id} value={b.id}>{b.immatriculation} ({b.marque})</option>
@@ -146,7 +200,10 @@ export default function ResponsibleTrajets() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Chauffeur</label>
-                  <select className="input-field">
+                  <select className="input-field" value={form.chauffeurId}
+                    onChange={(e) => setForm(p => ({ ...p, chauffeurId: e.target.value }))}
+                    disabled={loadingAdd}
+                  >
                     <option value="">Choisir un chauffeur</option>
                     {chauffeurs.map((c) => (
                       <option key={c.id} value={c.id}>{c.prenom} {c.nom}</option>
@@ -157,27 +214,37 @@ export default function ResponsibleTrajets() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Heure depart</label>
-                  <input type="time" className="input-field" />
+                  <input type="time" className="input-field" value={form.heureDepart}
+                    onChange={(e) => setForm(p => ({ ...p, heureDepart: e.target.value }))}
+                    disabled={loadingAdd}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Heure arrivee</label>
-                  <input type="time" className="input-field" />
+                  <input type="time" className="input-field" value={form.heureArrivee}
+                    onChange={(e) => setForm(p => ({ ...p, heureArrivee: e.target.value }))}
+                    disabled={loadingAdd}
+                  />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Jours de circulation</label>
                 <div className="flex gap-2">
-                  {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(j => (
+                  {JOURS_LABELS.map((j) => (
                     <label key={j} className="flex items-center gap-1">
-                      <input type="checkbox" defaultChecked={j !== 'Sam' && j !== 'Dim'} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                      <input type="checkbox" checked={form.joursSemaine.includes(j)}
+                        onChange={() => toggleJour(j)}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                       <span className="text-sm text-gray-700">{j}</span>
                     </label>
                   ))}
                 </div>
               </div>
               <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={() => setShowModal(false)} className="btn-primary flex-1">Creer le trajet</button>
+                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1" disabled={loadingAdd}>Annuler</button>
+                <button onClick={handleAdd} disabled={loadingAdd} className="btn-primary flex-1">
+                  {loadingAdd ? 'Création...' : 'Créer le trajet'}
+                </button>
               </div>
             </div>
           </div>

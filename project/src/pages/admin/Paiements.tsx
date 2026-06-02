@@ -1,7 +1,7 @@
-import { CreditCard, Download, DollarSign, TrendingUp, Plus, Receipt } from 'lucide-react';
+import { CreditCard, Download, DollarSign, TrendingUp, Plus, Receipt, Activity } from 'lucide-react';
 import { formatDate, formatCurrency, getStatutColor, getStatutLabel } from '../../utils/format';
 import { useEffect, useState } from 'react';
-import { fetchAllInscriptions } from '../../services/transport';
+import { getPaiements, getInscriptions, createPaiement } from '../../api/apiService';
 import { useToast } from '../../components/ui/useToast';
 import SearchBar from '../../components/ui/SearchBar';
 
@@ -11,53 +11,95 @@ export default function AdminPaiements() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showRecordModal, setShowRecordModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [recordForm, setRecordForm] = useState({
-    inscriptionId: '', montant: '', modePaiement: 'ESPECES', reference: '',
+    inscriptionId: '', montant: '', modePaiement: 'ESPECES', referenceTransaction: '',
   });
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchAllInscriptions().then((data) => setInscriptions(Array.isArray(data) ? data : data.content ?? [])).catch(() => setInscriptions([]));
+    loadData();
   }, []);
+
+  useEffect(() => {
+    const handler = () => { loadData().catch(() => {}); };
+    window.addEventListener('inscription:changed', handler as EventListener);
+    return () => window.removeEventListener('inscription:changed', handler as EventListener);
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [paiementsData, inscriptionsData] = await Promise.all([
+        getPaiements(),
+        getInscriptions(),
+      ]);
+      setPaiements(Array.isArray(paiementsData) ? paiementsData : paiementsData.content ?? []);
+      setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : inscriptionsData.content ?? []);
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      toast('error', 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = paiements
     .filter(p => filter === 'all' || p.statut === filter)
-    .filter(p => search === '' || `${p.etudiantNom} ${p.etudiantPrenom} ${p.referenceTransaction}`.toLowerCase().includes(search.toLowerCase()));
+    .filter(p => search === '' || `${p.etudiant?.nom || ''} ${p.etudiant?.prenom || ''} ${p.referenceTransaction || ''}`.toLowerCase().includes(search.toLowerCase()));
 
-  const totalPaye = paiements.filter(p => p.statut === 'PAYE').reduce((s, p) => s + p.montant, 0);
+  const totalPaye = paiements.filter(p => p.statut === 'PAYE').reduce((s, p) => s + (p.montant || 0), 0);
+  const totalEnAttente = paiements.filter(p => p.statut === 'EN_ATTENTE').reduce((s, p) => s + (p.montant || 0), 0);
 
   // Inscriptions validees with pending payment
-  const pendingInscriptions = inscriptions.filter(i => i.statut === 'VALIDEE' && i.paiementStatut === 'EN_ATTENTE');
+  const pendingInscriptions = inscriptions.filter(i => i.statut === 'VALIDEE' && !paiements.some(p => p.inscription?.id === i.id));
 
-  const handleRecordPayment = () => {
+  const handleRecordPayment = async () => {
     if (!recordForm.inscriptionId || !recordForm.montant) {
       toast('warning', 'Veuillez remplir tous les champs obligatoires');
       return;
     }
-    const ins = inscriptions.find(i => i.id === recordForm.inscriptionId);
-    const newPaiement = {
-      id: `PAY${Date.now()}`,
-      inscriptionId: recordForm.inscriptionId,
-      etudiantNom: ins?.etudiantNom || '',
-      etudiantPrenom: ins?.etudiantPrenom || '',
-      montant: parseFloat(recordForm.montant),
-      datePaiement: new Date().toISOString().split('T')[0],
-      modePaiement: recordForm.modePaiement as 'ESPECES' | 'VIREMENT',
-      statut: 'PAYE' as const,
-      referenceTransaction: recordForm.reference || `TXN-${Date.now()}`,
-    };
-    setPaiements(prev => [newPaiement, ...prev]);
-    setShowRecordModal(false);
-    setRecordForm({ inscriptionId: '', montant: '', modePaiement: 'ESPECES', reference: '' });
-    toast('success', `Paiement de ${formatCurrency(newPaiement.montant)} enregistre avec succes. Le badge a ete genere.`);
+
+    try {
+      setSubmitting(true);
+      const newPaiement = await createPaiement({
+        inscriptionId: recordForm.inscriptionId,
+        montant: parseFloat(recordForm.montant),
+        modePaiement: recordForm.modePaiement,
+        referenceTransaction: recordForm.referenceTransaction || undefined,
+      });
+
+      setPaiements(prev => [newPaiement, ...prev]);
+      setShowRecordModal(false);
+      setRecordForm({ inscriptionId: '', montant: '', modePaiement: 'ESPECES', referenceTransaction: '' });
+      toast('success', `Paiement de ${formatCurrency(parseFloat(recordForm.montant))} enregistré avec succès.`);
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      const msg = (error as any)?.response?.data?.message || (error as any)?.message || 'Erreur lors de l\'enregistrement du paiement';
+      toast('error', msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900">Gestion des paiements</h1>
+        <div className="flex items-center justify-center h-96">
+          <Activity className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestion des paiements</h1>
-          <p className="text-gray-600 mt-1">Suivez et enregistrez les paiements des etudiants</p>
+          <p className="text-gray-600 mt-1">Suivez et enregistrez les paiements des étudiants</p>
         </div>
         <button onClick={() => setShowRecordModal(true)} className="btn-primary inline-flex items-center gap-2">
           <Plus className="w-4 h-4" /> Enregistrer un paiement
@@ -69,14 +111,14 @@ export default function AdminPaiements() {
         <div className="stat-card">
           <div className="flex items-center gap-3 mb-2">
             <DollarSign className="w-5 h-5 text-success-600" />
-            <p className="text-sm text-gray-500">Total encaisse</p>
+            <p className="text-sm text-gray-500">Total encaissé</p>
           </div>
           <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPaye)}</p>
         </div>
         <div className="stat-card">
           <div className="flex items-center gap-3 mb-2">
             <CreditCard className="w-5 h-5 text-primary-600" />
-            <p className="text-sm text-gray-500">Paiements enregistres</p>
+            <p className="text-sm text-gray-500">Paiements enregistrés</p>
           </div>
           <p className="text-2xl font-bold text-gray-900">{paiements.length}</p>
         </div>
@@ -85,19 +127,18 @@ export default function AdminPaiements() {
             <TrendingUp className="w-5 h-5 text-accent-600" />
             <p className="text-sm text-gray-500">En attente</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{pendingInscriptions.length}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalEnAttente)}</p>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
         <SearchBar value={search} onChange={setSearch} placeholder="Rechercher un paiement..." />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
             { value: 'all', label: 'Tous' },
-            { value: 'PAYE', label: 'Payes' },
+            { value: 'PAYE', label: 'Payés' },
             { value: 'EN_ATTENTE', label: 'En attente' },
-            { value: 'ANNULE', label: 'Annules' },
           ].map(f => (
             <button key={f.value} onClick={() => setFilter(f.value)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               filter === f.value ? 'bg-primary-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
@@ -112,120 +153,128 @@ export default function AdminPaiements() {
           <table className="w-full">
             <thead>
               <tr className="table-header">
-                <th className="px-5 py-3">Reference</th>
-                <th className="px-5 py-3">Etudiant</th>
+                <th className="px-5 py-3">Étudiant</th>
+                <th className="px-5 py-3">Référence</th>
+                <th className="px-5 py-3">Montant</th>
                 <th className="px-5 py-3">Date</th>
                 <th className="px-5 py-3">Mode</th>
-                <th className="px-5 py-3">Montant</th>
                 <th className="px-5 py-3">Statut</th>
-                <th className="px-5 py-3">Reçu</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-4 text-sm font-mono text-gray-900">{p.referenceTransaction}</td>
-                  <td className="px-5 py-4 text-sm font-medium text-gray-900">{p.etudiantPrenom} {p.etudiantNom}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{formatDate(p.datePaiement)}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{p.modePaiement === 'ESPECES' ? 'Especes' : 'Virement'}</td>
-                  <td className="px-5 py-4 text-sm font-semibold text-gray-900">{formatCurrency(p.montant)}</td>
-                  <td className="px-5 py-4"><span className={getStatutColor(p.statut)}>{getStatutLabel(p.statut)}</span></td>
-                  <td className="px-5 py-4">
-                    {p.statut === 'PAYE' && (
-                      <button className="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 font-medium">
-                        <Download className="w-4 h-4" /> PDF
-                      </button>
-                    )}
+              {filtered.length > 0 ? (
+                filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-semibold text-primary-700">{(p.etudiant?.prenom || 'E')[0]}{(p.etudiant?.nom || 'U')[0]}</span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{p.etudiant?.prenom} {p.etudiant?.nom}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-600 font-mono">{p.referenceTransaction}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-900">{formatCurrency(p.montant)}</td>
+                    <td className="px-5 py-4 text-sm text-gray-600">{formatDate(p.datePaiement)}</td>
+                    <td className="px-5 py-4 text-sm text-gray-600">{p.modePaiement}</td>
+                    <td className="px-5 py-4"><span className={getStatutColor(p.statut)}>{getStatutLabel(p.statut)}</span></td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center">
+                    <p className="text-gray-500">Aucun paiement trouvé</p>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="p-12 text-center">
-            <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">Aucun paiement trouve</p>
-          </div>
-        )}
       </div>
 
-      {/* Record payment modal */}
+      {/* Record Payment Modal */}
       {showRecordModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4" onClick={() => setShowRecordModal(false)}>
-          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full">
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-success-100 rounded-lg flex items-center justify-center">
-                  <Receipt className="w-5 h-5 text-success-600" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-900">Enregistrer un paiement</h2>
+                <Receipt className="w-5 h-5 text-primary-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Enregistrer un paiement</h2>
               </div>
             </div>
+
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Inscription <span className="text-error-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Inscription validée</label>
                 <select
                   value={recordForm.inscriptionId}
-                  onChange={e => {
-                    const ins = inscriptions.find((i: any) => i.id === e.target.value);
-                    setRecordForm({
-                      ...recordForm,
-                      inscriptionId: e.target.value,
-                      montant: ins ? String(ins.typeAbonnement === 'MENSUEL' ? 2000 : ins.typeAbonnement === 'SEMESTRIEL' ? 8000 : 15000) : '',
-                    });
-                  }}
+                  onChange={(e) => setRecordForm({ ...recordForm, inscriptionId: e.target.value })}
                   className="input-field"
+                  disabled={submitting}
                 >
-                  <option value="">Selectionner une inscription en attente de paiement</option>
+                  <option value="">Choisir une inscription...</option>
                   {pendingInscriptions.map(i => (
                     <option key={i.id} value={i.id}>
-                      {i.etudiantPrenom} {i.etudiantNom} - {i.ligneNom} ({i.typeAbonnement === 'MENSUEL' ? 'Mensuel' : i.typeAbonnement === 'SEMESTRIEL' ? 'Semestriel' : 'Annuel'})
+                      {i.etudiant?.prenom} {i.etudiant?.nom} - {i.ligne?.nom}
                     </option>
                   ))}
                 </select>
-                {pendingInscriptions.length === 0 && (
-                  <p className="text-xs text-gray-400 mt-1">Aucune inscription en attente de paiement</p>
-                )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Montant (DZD) <span className="text-error-500">*</span></label>
-                  <input
-                    type="number"
-                    value={recordForm.montant}
-                    onChange={e => setRecordForm({ ...recordForm, montant: e.target.value })}
-                    className="input-field"
-                    placeholder="5000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Mode de paiement</label>
-                  <select
-                    value={recordForm.modePaiement}
-                    onChange={e => setRecordForm({ ...recordForm, modePaiement: e.target.value })}
-                    className="input-field"
-                  >
-                    <option value="ESPECES">Especes</option>
-                    <option value="VIREMENT">Virement</option>
-                  </select>
-                </div>
-              </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Reference de transaction</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Montant (DZD)</label>
                 <input
-                  value={recordForm.reference}
-                  onChange={e => setRecordForm({ ...recordForm, reference: e.target.value })}
+                  type="number"
+                  value={recordForm.montant}
+                  onChange={(e) => setRecordForm({ ...recordForm, montant: e.target.value })}
+                  placeholder="Entrer le montant"
                   className="input-field"
-                  placeholder="Optionnel - sera genere si vide"
+                  disabled={submitting}
                 />
               </div>
-              <div className="flex gap-3 pt-3">
-                <button onClick={() => setShowRecordModal(false)} className="btn-ghost flex-1">Annuler</button>
-                <button onClick={handleRecordPayment} className="btn-success flex-1 inline-flex items-center justify-center gap-2">
-                  <CreditCard className="w-4 h-4" /> Enregistrer le paiement
-                </button>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mode de paiement</label>
+                <select
+                  value={recordForm.modePaiement}
+                  onChange={(e) => setRecordForm({ ...recordForm, modePaiement: e.target.value })}
+                  className="input-field"
+                  disabled={submitting}
+                >
+                  <option value="ESPECES">Espèces</option>
+                  <option value="VIREMENT">Virement</option>
+                  <option value="CHEQUE">Chèque</option>
+                </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Référence (optionnel)</label>
+                <input
+                  type="text"
+                  value={recordForm.referenceTransaction}
+                  onChange={(e) => setRecordForm({ ...recordForm, referenceTransaction: e.target.value })}
+                  placeholder="N° de transaction, chèque..."
+                  className="input-field"
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex gap-3">
+              <button
+                onClick={() => setShowRecordModal(false)}
+                className="flex-1 btn-secondary"
+                disabled={submitting}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRecordPayment}
+                className="flex-1 btn-primary"
+                disabled={submitting}
+              >
+                {submitting ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
             </div>
           </div>
         </div>

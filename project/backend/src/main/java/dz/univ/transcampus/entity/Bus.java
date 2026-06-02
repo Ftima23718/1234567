@@ -39,7 +39,7 @@ public class Bus {
     @Builder.Default
     private StatutBus statut = StatutBus.ACTIF;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "ligne_id")
     private Ligne ligne;
 

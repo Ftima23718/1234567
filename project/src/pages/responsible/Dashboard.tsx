@@ -1,27 +1,36 @@
 import { useEffect, useState } from 'react';
 import { Bus, MapPin, Users, AlertTriangle, Wrench } from 'lucide-react';
 import { getStatutColor, getStatutLabel } from '../../utils/format';
-import { fetchBus, fetchLignes, fetchTrajets } from '../../services/transport';
+import axiosClient from '../../api/axiosClient';
 
 export default function ResponsibleDashboard() {
+  const [stats, setStats] = useState<any>(null);
   const [lignes, setLignes] = useState<any[]>([]);
   const [busList, setBusList] = useState<any[]>([]);
-  const [trajets, setTrajets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([fetchLignes(), fetchBus()])
-      .then(([lig, bus]) => {
-        setLignes(Array.isArray(lig) ? lig : lig.content ?? []);
-        setBusList(Array.isArray(bus) ? bus : bus.content ?? []);
-        return Promise.all((Array.isArray(lig) ? lig : lig.content ?? []).map((ligne: any) => fetchTrajets(ligne.id)));
+    setLoading(true);
+    Promise.all([
+      axiosClient.get('/dashboard/responsable'),
+      axiosClient.get('/lignes'),
+      axiosClient.get('/bus'),
+    ])
+      .then(([dashRes, lignesRes, busRes]) => {
+        setStats(dashRes.data);
+        setLignes(Array.isArray(lignesRes.data) ? lignesRes.data : lignesRes.data?.content ?? []);
+        setBusList(Array.isArray(busRes.data) ? busRes.data : busRes.data?.content ?? []);
       })
-      .then((all) => setTrajets(all.flat()))
-      .catch(() => {
-        setLignes([]);
-        setBusList([]);
-        setTrajets([]);
-      });
+      .catch((err) => {
+        console.error('Dashboard responsable error:', err);
+        setError('Erreur lors du chargement des données');
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) return <div className="flex items-center justify-center h-96"><p>Chargement...</p></div>;
+  if (error) return <div className="text-error-600">{error}</div>;
 
   const activeLignes = lignes.filter((l) => l.estActive);
   const maintenanceBus = busList.filter((b) => b.statut === 'EN_MAINTENANCE');
@@ -41,7 +50,7 @@ export default function ResponsibleDashboard() {
               <Bus className="w-5 h-5 text-primary-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{activeLignes.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.lignesActives ?? activeLignes.length}</p>
               <p className="text-sm text-gray-500">Lignes actives</p>
             </div>
           </div>
@@ -52,7 +61,7 @@ export default function ResponsibleDashboard() {
               <MapPin className="w-5 h-5 text-success-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{busList.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalBus ?? busList.length}</p>
               <p className="text-sm text-gray-500">Bus total</p>
             </div>
           </div>
@@ -74,7 +83,7 @@ export default function ResponsibleDashboard() {
               <Users className="w-5 h-5 text-accent-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{trajets.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalTrajets ?? 0}</p>
               <p className="text-sm text-gray-500">Trajets planifies</p>
             </div>
           </div>
@@ -87,6 +96,7 @@ export default function ResponsibleDashboard() {
           <h2 className="text-lg font-semibold text-gray-900">Etat des lignes</h2>
         </div>
         <div className="divide-y divide-gray-100">
+          {lignes.length === 0 && <div className="p-5 text-gray-500">Aucune ligne disponible</div>}
           {lignes.map((ligne) => (
             <div key={ligne.id} className="p-5 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between mb-3">
@@ -105,15 +115,15 @@ export default function ResponsibleDashboard() {
               </div>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="bg-gray-50 rounded-lg p-2">
-                  <p className="text-sm font-bold text-gray-900">{ligne.arretsCount}</p>
+                  <p className="text-sm font-bold text-gray-900">{ligne.arretsCount ?? 0}</p>
                   <p className="text-xs text-gray-500">Arrets</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-2">
-                  <p className="text-sm font-bold text-gray-900">{ligne.busCount}</p>
+                  <p className="text-sm font-bold text-gray-900">{ligne.busCount ?? 0}</p>
                   <p className="text-xs text-gray-500">Bus</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-2">
-                  <p className="text-sm font-bold text-gray-900">{trajets.filter((t) => t.ligneId === ligne.id).length}</p>
+                  <p className="text-sm font-bold text-gray-900">{ligne.trajetsCount ?? 0}</p>
                   <p className="text-xs text-gray-500">Trajets</p>
                 </div>
               </div>
@@ -130,6 +140,9 @@ export default function ResponsibleDashboard() {
           </h2>
         </div>
         <div className="divide-y divide-gray-100">
+          {busList.filter((b) => b.statut !== 'ACTIF').length === 0 && (
+            <div className="p-5 text-gray-500">Aucune alerte</div>
+          )}
           {busList.filter((b) => b.statut !== 'ACTIF').map((bus) => (
             <div key={bus.id} className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

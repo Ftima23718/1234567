@@ -10,6 +10,7 @@ import dz.univ.transcampus.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,5 +47,11 @@ public class AuthController {
                                                               @Valid @RequestBody AuthDtos.ChangePasswordRequest req) {
         authService.changePassword(auth.getName(), req);
         return ResponseEntity.ok(Map.of("message", "Mot de passe modifié avec succès"));
+    }
+
+    @PostMapping("/create-user")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AuthDtos.AuthResponse> createUser(@Valid @RequestBody AuthDtos.CreateUserRequest req) {
+        return ResponseEntity.ok(authService.createUser(req));
     }
 }

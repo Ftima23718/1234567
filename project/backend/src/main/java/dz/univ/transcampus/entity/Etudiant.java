@@ -13,7 +13,7 @@ public class Etudiant {
     @Id
     private String id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @MapsId
     @JoinColumn(name = "id")
     private Utilisateur utilisateur;

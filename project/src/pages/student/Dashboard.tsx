@@ -11,10 +11,8 @@ export default function StudentDashboard() {
   const [myInscriptions, setMyInscriptions] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [dashboard, setDashboard] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       fetchMyInscriptions(),
       fetchNotifications(),
@@ -29,8 +27,7 @@ export default function StudentDashboard() {
         console.error('Error fetching dashboard data:', err);
         setMyInscriptions([]);
         setNotifications([]);
-      })
-      .finally(() => setLoading(false));
+      });
   }, []);
 
   const activeInscriptions = useMemo(() => myInscriptions.filter(i => i.statut === 'VALIDEE'), [myInscriptions]);

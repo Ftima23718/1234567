@@ -23,7 +23,7 @@ public class Arret {
     @Builder.Default
     private Integer ordre = 1;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "ligne_id", nullable = false)
     private Ligne ligne;
 

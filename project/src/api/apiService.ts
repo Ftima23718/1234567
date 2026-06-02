@@ -27,8 +27,24 @@ export async function getEtudiantById(id: string | number) {
   return request<any>('GET', `/etudiants/${id}`);
 }
 
+export async function updateUser(id: string | number, data: unknown) {
+  return request<any>('PUT', `/users/${id}`, data);
+}
+
 export async function getChauffeurs() {
   return request<any>('GET', '/chauffeurs');
+}
+
+export async function createChauffeur(data: unknown) {
+  return request<any>('POST', '/auth/chauffeur', data);
+}
+
+export async function updateChauffeur(id: string | number, data: unknown) {
+  return request<any>('PUT', `/chauffeurs/${id}`, data);
+}
+
+export async function deleteChauffeur(id: string | number) {
+  return request<any>('DELETE', `/chauffeurs/${id}`);
 }
 
 export async function getLignes() {
@@ -36,7 +52,7 @@ export async function getLignes() {
 }
 
 export async function createLigne(data: unknown) {
-  return request<any>('POST', '/lignes', data);
+  return request<any>('POST', '/admin/lignes', data);
 }
 
 export async function updateLigne(id: string | number, data: unknown) {
@@ -56,7 +72,7 @@ export async function getArretsByLigne(ligneId: string | number) {
 }
 
 export async function createArret(data: unknown) {
-  return request<any>('POST', '/arrets', data);
+  return request<any>('POST', '/admin/arrets', data);
 }
 
 export async function updateArret(id: string | number, data: unknown) {
@@ -72,7 +88,7 @@ export async function getBus() {
 }
 
 export async function createBus(data: unknown) {
-  return request<any>('POST', '/bus', data);
+  return request<any>('POST', '/admin/bus', data);
 }
 
 export async function updateBus(id: string | number, data: unknown) {
@@ -88,7 +104,7 @@ export async function getTrajets() {
 }
 
 export async function createTrajet(data: unknown) {
-  return request<any>('POST', '/trajets', data);
+  return request<any>('POST', '/admin/trajets', data);
 }
 
 export async function updateTrajet(id: string | number, data: unknown) {
@@ -100,11 +116,11 @@ export async function deleteTrajet(id: string | number) {
 }
 
 export async function getInscriptions() {
-  return request<any>('GET', '/inscriptions');
+  return unwrapList<any>(await request<any>('GET', '/inscriptions'));
 }
 
 export async function getMyInscriptions() {
-  return request<any>('GET', '/inscriptions/me');
+  return unwrapList<any>(await request<any>('GET', '/inscriptions/me'));
 }
 
 export async function createInscription(data: unknown) {
@@ -112,11 +128,11 @@ export async function createInscription(data: unknown) {
 }
 
 export async function validerInscription(id: string | number) {
-  return request<any>('PUT', `/inscriptions/${id}/valider`);
+  return request<any>('PUT', `/inscriptions/${id}/validate`);
 }
 
 export async function rejeterInscription(id: string | number, motif: string) {
-  return request<any>('PUT', `/inscriptions/${id}/rejeter`, { motif });
+  return request<any>('PUT', `/inscriptions/${id}/reject`, { motifRejet: motif });
 }
 
 export async function getPaiements() {

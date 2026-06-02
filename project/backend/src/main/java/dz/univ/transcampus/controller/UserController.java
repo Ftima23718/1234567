@@ -55,7 +55,7 @@ public class UserController {
                 return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
             }
 
-            Utilisateur user = utilisateurRepository.findByEmail(auth.getName())
+            Utilisateur user = utilisateurRepository.findById(auth.getName())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             // Convert file to Base64
@@ -74,5 +74,37 @@ public class UserController {
         } catch (IOException e) {
             return ResponseEntity.badRequest().body(Map.of("error", "Failed to upload photo: " + e.getMessage()));
         }
+    }
+
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<TransportDtos.ProfileResponse> updateUser(
+            @PathVariable String id,
+            @RequestBody Map<String, Object> updates) {
+        Utilisateur user = utilisateurRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (updates.containsKey("nom")) {
+            user.setNom((String) updates.get("nom"));
+        }
+        if (updates.containsKey("prenom")) {
+            user.setPrenom((String) updates.get("prenom"));
+        }
+        if (updates.containsKey("telephone")) {
+            user.setTelephone((String) updates.get("telephone"));
+        }
+
+        utilisateurRepository.save(user);
+        return ResponseEntity.ok(mapper.toProfileResponse(user));
+    }
+
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> deleteUser(@PathVariable String id) {
+        Utilisateur user = utilisateurRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        utilisateurRepository.delete(user);
+        return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 }
